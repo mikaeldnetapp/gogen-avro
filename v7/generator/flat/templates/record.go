@@ -8,6 +8,18 @@ import (
 	"github.com/actgardner/gogen-avro/v7/compiler"
 )
 
+var (
+	i{{ .Name }}Program *vm.Program
+)
+
+func init() {
+	var err error
+	i{{ .Name }}Program, err = compiler.CompileSchemaBytes([]byte({{ .Name }}AvroSchema), []byte({{ .Name }}AvroSchema))
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
 {{ if ne .Doc "" }}// {{ .Doc}}{{ end }}
 type {{ .Name }} struct {
 {{ range $i, $field := .Fields -}}
@@ -21,6 +33,8 @@ type {{ .Name }} struct {
 }
 
 const {{ .Name }}AvroCRC64Fingerprint = {{ definitionFingerprint . }}
+const {{ .Name }}AvroSchema = {{ printf "%q" .Schema }}
+const {{ .Name }}AvroSchemaName = {{ printf "%q" .AvroName.String }}
 
 func {{ .ConstructorMethod }} ({{ .GoType}}) {
 	return &{{ .Name }}{}
@@ -28,31 +42,10 @@ func {{ .ConstructorMethod }} ({{ .GoType}}) {
 
 func Deserialize{{ .Name }}(r io.Reader) ({{ .GoType }}, error) {
 	t := {{ .ConstructorMethod }}
-	deser, err := compiler.CompileSchemaBytes([]byte(t.Schema()), []byte(t.Schema()))
-	if err != nil {
+	if err := vm.Eval(r, i{{ .Name }}Program, t); err != nil {
 		return nil, err
 	}
-
-	err = vm.Eval(r, deser, t)
-	if err != nil {
-		return nil, err
-	}
-	return t, err
-}
-
-func Deserialize{{ .Name }}FromSchema(r io.Reader, schema string) ({{ .GoType }}, error) {
-	t := {{ .ConstructorMethod }}
-
-	deser, err := compiler.CompileSchemaBytes([]byte(schema), []byte(t.Schema()))
-	if err != nil {
-		return nil, err
-	}
-
-	err = vm.Eval(r, deser, t)
-	if err != nil {
-		return nil, err
-	}
-	return t, err
+	return t, nil
 }
 
 func {{ .SerializerMethod }}(r {{ .GoType }}, w io.Writer) error {
@@ -71,11 +64,11 @@ func (r {{ .GoType }}) Serialize(w io.Writer) error {
 }
 
 func (r {{ .GoType }}) Schema() string {
-	return {{ printf "%q" .Schema }}
+	return {{ .Name }}AvroSchema
 }
 
 func (r {{ .GoType }}) SchemaName() string {
-	return {{ printf "%q" .AvroName.String }}
+	return {{ .Name }}AvroSchemaName
 }
 
 func (_ {{ .GoType }}) SetBoolean(v bool) { panic("Unsupported operation") }
@@ -136,6 +129,6 @@ func (_ {{ .GoType }}) Finalize() { }
 
 
 func (_ {{ .GoType}}) AvroCRC64Fingerprint() []byte {
-  return []byte({{ .Name }}AvroCRC64Fingerprint)
+	return []byte({{ .Name }}AvroCRC64Fingerprint)
 }
 `

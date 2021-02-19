@@ -9,5 +9,6 @@ import (
 */
 type AvroRecord interface {
 	Serialize(io.Writer) error
+	SchemaName() string
 	AvroCRC64Fingerprint() []byte
 }
